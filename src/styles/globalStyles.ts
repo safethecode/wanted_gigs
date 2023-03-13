@@ -10,6 +10,6 @@ export const globalStyles = globalCss({
     width: '100%',
     height: '100%',
     fontFamily: '$sans',
-    backgroundColor: '$white',
+    backgroundColor: '$black',
   },
 });
