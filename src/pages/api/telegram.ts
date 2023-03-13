@@ -129,5 +129,10 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       );
     }
   }
+  if (req.body.message?.text === '/alive') {
+    await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage?chat_id=${req.body.message.chat.id}&text=I'm alive!`,
+    );
+  }
   res.status(200).send('OK');
 };
