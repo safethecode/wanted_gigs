@@ -1,9 +1,9 @@
 import { Row } from 'typings/wantedGigs';
 
-export const registChatRoomMessage = `
+export const registChatRoomMessage = (chatId: string) => `
 <b>🛎 외주 알림이 등록되었습니다.</b>
 %0A%0A
-<b>알림을 받을 채팅방</b>: ${process.env.USER_CHAT_ID}
+<b>알림을 받을 채팅방</b>: ${chatId}
 %0A%0A
 `;
 

@@ -23,11 +23,15 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     if (!process.env.USER_CHAT_ID) {
       process.env.USER_CHAT_ID = req.body.message.chat.id.toString();
 
-      await fetch(
-        `https://api.telegram.org/bot${token}/sendMessage?chat_id=${Number(
-          process.env.USER_CHAT_ID,
-        )}&parse_mode=HTML&&text=${registChatRoomMessage}`,
-      );
+      if (process.env.USER_CHAT_ID) {
+        await fetch(
+          `https://api.telegram.org/bot${token}/sendMessage?chat_id=${Number(
+            process.env.USER_CHAT_ID,
+          )}&parse_mode=HTML&&text=${registChatRoomMessage(
+            process.env.USER_CHAT_ID,
+          )}`,
+        );
+      }
     }
 
     cron.schedule('0 6,14 * * *', async () => {
