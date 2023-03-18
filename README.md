@@ -1,12 +1,14 @@
-# Wave 🌊
+# Gigs 📮
 
-![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
-![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
-![SASS](https://img.shields.io/badge/SASS-hotpink.svg?style=for-the-badge&logo=SASS&logoColor=white)
-
-This repository is a boilerplate based on NextJS. using TypeScript by default, and Recoil for global state management. Also, for styling, I'm using stitches.
+원티드 긱스 내 등록되는 최신 외주 프로젝트를 가져옵니다.
 
 ### How to use?
+
 ```
-$ git clone https://github.com/safethecode/wave.git
+# .env
+
+TELEGRAM_TOKEN={텔레그램에서 제공한 Bot Token}
+WANTED_API_URL={원티드 API 주소}
+WANTED_EMAIL={원티드에 가입된 이메일}
+WANTED_PASSWORD={원티드에 가입된 패스워드}
 ```
