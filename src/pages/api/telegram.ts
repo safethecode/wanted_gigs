@@ -1,138 +1,172 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import type { Row, WantedGigs } from 'typings/wantedGigs';
 
-export interface WantedGigs {
-  status: string;
-  rows: Row[];
-  count: Count;
-}
+import { chromium } from 'playwright';
 
-export interface Count {
-  total: number;
-  page: number;
-  pages: number;
-}
+import {
+  registChatRoomMessage,
+  registMessage,
+  registSuccessMessage,
+} from 'constants/telegramMessages';
 
-export interface Row {
-  id: number;
-  title: string;
-  titleDisplay: string;
-  work_type: null | string;
-  work_place: WorkPlace;
-  work_place_txt: WorkPlaceTxt;
-  salary: Salary;
-  startAt: Date;
-  negotiable_start: boolean;
-  address: null | string;
-  text_work_place: string;
-  term: Term;
-  text_term_type: TextTermType;
-  text_salary_type: TextSalaryType;
-  apply_count: number;
-  count_matches: number;
-  directApplyCount: number;
-  clientSuggestAcceptCount: number;
-  managerSuggestAcceptCount: number;
-  is_suggest: null;
-  jobs: string;
-  skills: string;
-  new_project: boolean;
-  match_id: null;
-  match_status_expert: string;
-  is_recruiting: boolean;
-  is_bookmark: boolean;
-  jobsV2: JobsV2[];
-}
-
-export interface JobsV2 {
-  jobIndustryId: number;
-  jobIndustryTitle: JobIndustryTitle;
-  jobCategoryId: number;
-  jobCategoryTitle: string;
-}
-
-export enum JobIndustryTitle {
-  개발 = '개발',
-}
-
-export interface Salary {
-  salary_type: SalaryType;
-  start: number;
-  end: number;
-}
-
-export enum SalaryType {
-  All = 'all',
-  Monthly = 'monthly',
-}
-
-export interface Term {
-  term_type: TermType;
-  start: number;
-  end: number | null;
-}
-
-export enum TermType {
-  Monthly = 'monthly',
-  Weekly = 'weekly',
-}
-
-export enum TextSalaryType {
-  월급 = '월급',
-  프로젝트전체 = '프로젝트 전체',
-}
-
-export enum TextTermType {
-  개월 = '개월',
-  주 = '주',
-}
-
-export enum WorkPlace {
-  Both = 'both',
-  Office = 'office',
-  Remote = 'remote',
-}
-
-export enum WorkPlaceTxt {
-  상주 = '상주',
-  원격 = '원격',
-  원격상주 = '원격/상주',
-}
+import cron from 'node-cron';
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
-  const token = process.env.NEXT_PUBLIC_TELEGRAM_TOKEN;
+  const token = process.env.TELEGRAM_TOKEN;
 
-  if (req.body.message?.text === '/start') {
-    const wantedGigs: WantedGigs = await fetch(
-      'https://www.wanted.co.kr/gigs/api-v2/projects?page=1&work_type_office=true&work_type_remote=true&sort=createdAt&job_industry=518&skills=&is_recruiting=true',
-    ).then((res) => res.json());
+  const WANTED_API_URL = process.env.WANTED_API_URL;
 
-    const isWantedGisNewProject = wantedGigs.rows.filter(
-      (gig) => gig.new_project,
-    );
-
-    if (isWantedGisNewProject.length > 0) {
-      const message = isWantedGisNewProject
-        .map(
-          (gig) =>
-            `New Project: ${
-              gig.titleDisplay
-            }%0A${`https://www.wanted.co.kr/gigs/projects/${gig.id}`}%0A가격: ${
-              gig.salary.start
-            } ~ ${gig.salary.end}%0A기간: ${gig.term.start} ~ ${
-              gig.term.end
-            }%0A근무 형태: ${gig.work_place_txt}`,
-        )
-        .join('%0A%0A');
-
+  /**
+   * 외주 알림 받게 될 채팅방 등록 및 알림 보내기
+   */
+  if (req.body.message?.text === '/outsourcing_notification_registration') {
+    if (!process.env.USER_CHAT_ID) {
       await fetch(
-        `https://api.telegram.org/bot${token}/sendMessage?chat_id=${req.body.message.chat.id}&text=${message}&parse_mode=HTML`,
+        `https://api.telegram.org/bot${token}/sendMessage?chat_id=${Number(
+          process.env.USER_CHAT_ID,
+        )}&text=${registChatRoomMessage}`,
       );
     }
+
+    process.env.USER_CHAT_ID = req.body.message.chat.id.toString();
+
+    cron.schedule('0 6,14 * * *', async () => {
+      if (WANTED_API_URL) {
+        const wantedGigs: WantedGigs = await fetch(WANTED_API_URL).then((res) =>
+          res.json(),
+        );
+
+        const isWantedGisNewProject = wantedGigs.rows.filter(
+          (gig) => gig.new_project,
+        );
+
+        const requestButton = (gig: any) => {
+          return {
+            inline_keyboard: [
+              [
+                {
+                  text: '바로 지원하기 ➡️',
+                  callback_data: JSON.stringify({
+                    chatId: Number(process.env.USER_CHAT_ID),
+                    projectId: gig.id,
+                  }),
+                },
+              ],
+            ],
+          };
+        };
+
+        for (const gig of isWantedGisNewProject.slice(0, 1)) {
+          await fetch(
+            `https://api.telegram.org/bot${token}/sendMessage?chat_id=${Number(
+              process.env.USER_CHAT_ID,
+            )}&text=${registMessage(
+              gig as Row,
+            )}&parse_mode=HTML&reply_markup=${JSON.stringify(
+              requestButton(gig),
+            )}`,
+          );
+        }
+      }
+    });
   }
-  if (req.body.message?.text === '/alive') {
-    await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage?chat_id=${req.body.message.chat.id}&text=I'm alive!`,
-    );
+  /**
+   * 외주 등록 알림 내 버튼 클릭 시 동작
+   */
+  if (req.body.callback_query?.data) {
+    const {
+      chatId,
+      projectId,
+    }: {
+      chatId: number;
+      projectId: Row['id'];
+    } = JSON.parse(req.body.callback_query?.data);
+
+    if (WANTED_API_URL) {
+      const wantedGigs: WantedGigs = await fetch(WANTED_API_URL).then((res) =>
+        res.json(),
+      );
+
+      const isWantedGisNewProject = wantedGigs.rows.filter(
+        (gig) => gig.new_project && gig.id === projectId,
+      );
+
+      for (const gig of isWantedGisNewProject) {
+        if (process.env.WANTED_EMAIL && process.env.WANTED_PASSWORD) {
+          const browser = await chromium.launch({
+            headless: true,
+            ignoreDefaultArgs: ['--disable-extensions'],
+            timeout: 60000,
+          });
+
+          const context = await browser.newContext({
+            userAgent:
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4298.0 Safari/537.36',
+          });
+
+          const page = await context.newPage();
+
+          await page.goto(`https://www.wanted.co.kr/gigs/projects/${gig.id}`, {
+            timeout: 0,
+          });
+
+          await page.getByRole('button', { name: '로그인 하기' }).click();
+
+          // 이메일 & 비밀번호 입력하기
+          await page.getByTestId('Input_email').click();
+          await page.getByTestId('Input_email').fill(process.env.WANTED_EMAIL);
+
+          await page.getByTestId('Button').click();
+
+          await page.getByTestId('Input_password').click();
+
+          await page
+            .getByTestId('Input_password')
+            .fill(process.env.WANTED_PASSWORD);
+          await page.getByRole('button', { name: 'Next' }).click();
+
+          await page.getByRole('button', { name: '매칭 요청하기' }).click();
+
+          // 한줄 소개 (타이틀) 입력하기
+          await page
+            .getByPlaceholder('예) 트렌드를 읽는 디자이너 김티드 입니다.')
+            .click();
+
+          await page
+            .getByPlaceholder('예) 트렌드를 읽는 디자이너 김티드 입니다.')
+            .fill(
+              '스타트업 씬에서 근무한 4년차 프론트엔드 개발자 손지민입니다.',
+            );
+
+          // 견적 가격 작성하기 (현재는 최소 ~ 최대 입력)
+          await page.locator('#advanced_search_salaryAmountStart').click();
+          await page
+            .locator('#advanced_search_salaryAmountStart')
+            .fill(String(gig.salary.start));
+
+          await page.locator('#advanced_search_salaryAmountEnd').click();
+          await page
+            .locator('#advanced_search_salaryAmountEnd')
+            .fill(String(gig.salary.end));
+
+          // 완료 버튼 클릭
+          await page.getByRole('button', { name: '완료' }).click();
+
+          // 크로미움 끝내기
+          await context.close();
+          await browser.close();
+
+          // 지원 완료 텍스트 보내기
+          await fetch(
+            `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${registSuccessMessage(
+              gig as Row,
+            )}&parse_mode=HTML`,
+          );
+        } else {
+          throw new Error('WANTED Email or Password is not defined');
+        }
+      }
+    }
   }
   res.status(200).send('OK');
 };
