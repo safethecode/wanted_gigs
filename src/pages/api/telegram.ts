@@ -23,7 +23,7 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     if (!process.env.USER_CHAT_ID) {
       await fetch(
         `https://api.telegram.org/bot${token}/sendMessage?chat_id=${Number(
-          process.env.USER_CHAT_ID,
+          req.body.message.chat.id,
         )}&text=${registChatRoomMessage}`,
       );
     }
