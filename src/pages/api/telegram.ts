@@ -21,14 +21,14 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
    */
   if (req.body.message?.text === '/outsourcing_notification_registration') {
     if (!process.env.USER_CHAT_ID) {
+      process.env.USER_CHAT_ID = req.body.message.chat.id.toString();
+
       await fetch(
         `https://api.telegram.org/bot${token}/sendMessage?chat_id=${Number(
-          req.body.message.chat.id,
-        )}&text=${registChatRoomMessage}`,
+          process.env.USER_CHAT_ID,
+        )}&parse_mode=HTML&&text=${registChatRoomMessage}`,
       );
     }
-
-    process.env.USER_CHAT_ID = req.body.message.chat.id.toString();
 
     cron.schedule('0 6,14 * * *', async () => {
       if (WANTED_API_URL) {
