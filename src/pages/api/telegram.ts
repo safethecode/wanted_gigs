@@ -34,7 +34,7 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       }
     }
 
-    cron.schedule('0 6,14 * * *', async () => {
+    cron.schedule('0 6,12,18 * * *', async () => {
       if (WANTED_API_URL) {
         const wantedGigs: WantedGigs = await fetch(WANTED_API_URL).then((res) =>
           res.json(),
